@@ -3,12 +3,8 @@
 // Licensed under the MIT license (http://opensource.org/licenses/MIT).
 // This file may not be copied, modified, or distributed except according to those terms.
 #[deny(clippy::mut_from_ref)]
-//use petgraph::graph::NodeIndex;
-//use petgraph_graphml::GraphMl;
-//use petgraph::graph::DiGraph;
 use pbr::ProgressBar;
 use std::io::stderr;
-//use std::error::Error;
 use std::io::Write;
 use std::io::{BufWriter, BufRead, BufReader};
 use std::collections::HashMap;
@@ -18,17 +14,17 @@ use closure::closure;
 use crate::read::Read;
 use std::collections::HashSet;
 extern crate array_tool;
-//use std::fs::remove_file;
-use crossbeam_utils::{thread};
+use crossbeam_utils::thread;
 use structopt::StructOpt;
 use std::sync::{Arc, Mutex};
 use std::path::PathBuf;
-use std::time::{Instant};
+use std::time::Instant;
 use std::fs;
 use std::fs::File;
-use std::mem::{MaybeUninit};
-use seq_io::BaseRecord;
-use seq_io::parallel::{read_process_fasta_records, read_process_fastq_records};
+use std::mem::MaybeUninit;
+use seq_io::fasta::Record;
+use seq_io::fastq::Record as OtherRecord;
+use seq_io::parallel::{parallel_fasta, parallel_fastq};
 use lzzzz::lz4f::{WriteCompressor, BufReadDecompressor, Preferences};//, PreferencesBuilder, CLEVEL_HIGH};
 use xx_bloomfilter::Bloom;
 use flate2::read::GzDecoder;
@@ -37,7 +33,6 @@ use glob::glob;
 use dashmap::DashMap;
 use std::cell::UnsafeCell;
 use std::io::Result;
-//use std::fmt::Arguments;
 mod utils;
 mod minimizers;
 mod ec_reads;
@@ -822,11 +817,11 @@ fn main() {
         println!("Parsing input sequences...");
         if fasta_reads {
             let reader = seq_io::fasta::Reader::new(buf);
-            let _res = read_process_fasta_records(reader, threads as u32, queue_len, process_read_fasta, |_record, found| {main_thread(found)});
+            let _res = parallel_fasta(reader, threads as u32, queue_len, process_read_fasta, |_record, found| {main_thread(found)});
         }
         else {
             let reader = seq_io::fastq::Reader::new(buf);
-            let _res = read_process_fastq_records(reader, threads as u32, queue_len, process_read_fastq, |_record, found| {main_thread(found)});
+            let _res = parallel_fastq(reader, threads as u32, queue_len, process_read_fastq, |_record, found| {main_thread(found)});
         }
 
         pb.finish_print("Converted reads to k-min-mers.");
@@ -984,11 +979,11 @@ fn main() {
         else { println!("Format: FASTQ"); }
         if read_stats_fasta_reads {
             let reader = seq_io::fasta::Reader::new(buf);
-            let _res = read_process_fasta_records(reader, threads as u32, queue_len, read_stats_process_read_fasta, |_record, _found| {read_stats_main_thread()});
+            let _res = parallel_fasta(reader, threads as u32, queue_len, read_stats_process_read_fasta, |_record, _found| {read_stats_main_thread()});
         }
         else {
             let reader = seq_io::fastq::Reader::new(buf);
-            let _res = read_process_fastq_records(reader, threads as u32, queue_len, read_stats_process_read_fastq, |_record, _found| {read_stats_main_thread()});
+            let _res = parallel_fastq(reader, threads as u32, queue_len, read_stats_process_read_fastq, |_record, _found| {read_stats_main_thread()});
         }
         println!("Read stats written, exiting.");
         return;
